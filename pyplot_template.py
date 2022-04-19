@@ -7,7 +7,6 @@ with open('data.txt', 'w') as outfile:
     plt.xlabel('t, с')
     plt.ylabel('U, В')
     plt.title('Зависимость напряжения на обкладках конденсатора U от времени t')
-    plt.pause(0.05)
     plt.show()
     
     str_voltage = [str(u) for u in voltage]
