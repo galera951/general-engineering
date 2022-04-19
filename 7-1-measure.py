@@ -1,6 +1,7 @@
 import RPi.GPIO as GPIO
 import time
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 # Преобразование числа из n_10 в n_2 с.с.
@@ -61,6 +62,7 @@ def gpio_close(output_pins):
 
 
 if __name__ == "__main__":
+    # Пины, с которыми мы будем работать
     dac = [10, 9, 11, 5, 6, 13, 19, 26][::-1]
     leds = [21, 20, 16, 12, 7, 8, 25, 24][::-1]
     comp = 4
@@ -69,19 +71,25 @@ if __name__ == "__main__":
     inp_pins = [comp]
     out_pins = dac + leds + [troyka]
 
+    # Инициализация пинов
     gpio_init(inp_pins, out_pins)
 
+    # Основной блок программы
     try:
+        # Необходимые для работы переменные
         data = {
             'voltage': [],
             'time': []
         }
         start_time = time.time()
 
+        # Подаём на тройка-модуль сигнал 1 (3.3В)
         troyka_reg('on')
 
+        # Вычисляем напряжение на конденсаторе
         capacitor_charge = analog_to_digital_conventer() / 3.3
 
+        # Конденсатор заряжается
         while capacitor_charge < 0.97:
             cur_voltage = analog_to_digital_conventer()
             cur_time = time.time() - start_time
@@ -94,6 +102,7 @@ if __name__ == "__main__":
         
         troyka_reg('off')
 
+        # Конденсатор разряжается
         while capacitor_charge > 0.02:
             cur_voltage = analog_to_digital_conventer()
             cur_time = time.time() - start_time
@@ -106,14 +115,22 @@ if __name__ == "__main__":
         
         all_time = cur_time
 
-        print(f'Эксперимент завершён!\nОбщая продолжительность эксперимента составила: {all_time} секунд.')
-        
+        print(f'Эксперимент завершён!\nОбщая продолжительность эксперимента составила: {all_time:.2f} секунд.')
+
         # Построения графика зависимости напряжения на обкладках конденсатора от времени
+        def theor_v(t):
+            R = 10 * 100000
+            C = 10 * (10 ** (-6))
+            tau = R * C
+
+            return 3.3 * (1 - np.exp(-t / tau))
+        
         plt.plot(data['time'], data['voltage'])
+        np_t = np.array(data['time'])
+        plt.plot(np_t, theor_v(np_t))
         plt.xlabel('t, с')
         plt.ylabel('U, В')
         plt.title('Зависимость напряжения на обкладках конденсатора U от времени t')
-        plt.show()
 
         # Вычисление некоторых параметров эксперимента
         count_of_measurements = len(data['time'])
@@ -123,22 +140,26 @@ if __name__ == "__main__":
 
         # Сохранение данных в файл
         with open('data.txt', 'w') as out_file:
-            out_file.write('voltage,time\n')
+            # out_file.write('voltage,time\n')
 
-            for i in range(count_of_measurements):
-                voltage = data['voltage'][i]
-                time = data['time'][i]
-                out_file.write(f'{voltage},{time}\n')
+            # for i in range(count_of_measurements):
+            #     voltage = data['voltage'][i]
+            #     time = data['time'][i]
+            #     out_file.write(f'{voltage},{time}\n')
+            out_file.write('\n'.join(map(str, data['voltage'])))
         
         # Сохранение конфигурации в файл
         with open('settings.txt', 'w') as settings_file:
-            settings_file.write(f'Average sampiling rate: {av_sampiling_rate}\n')
-            settings_file.write(f'Quantization step: {quant_step}\n')
+            settings_file.write(f'{av_sampiling_rate}\n')
+            settings_file.write(f'{quant_step}')
 
         # Вывод технической информации в терминал
-        print(f'Средний период одного измерения составил: {av_measurment_period} секунд.')
-        print(f'Средняя частота дискретизации составила: {av_sampiling_rate} герц.')
-        print(f'Шаг квантования АЦП составляет {quant_step}')
+        print(f'Средний период одного измерения составил: {av_measurment_period:.4f} секунд.')
+        print(f'Средняя частота дискретизации составила: {av_sampiling_rate:.4f} герц.')
+        print(f'Шаг квантования АЦП составляет {quant_step:.4f} вольт.')
+
+        plt.show()
 
     finally:
+        # Завершение работы с интерфейсом
         gpio_close(out_pins)
